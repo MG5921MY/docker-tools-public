@@ -1,0 +1,312 @@
+# ═══════════════════════════════════════════════════
+# DockerTools - Git 忽略配置
+# ═══════════════════════════════════════════════════
+# 版本: v1.0
+# 更新: 2025-11-06
+# 说明: 保护敏感信息，忽略临时文件
+# ═══════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════
+# 输出目录（导出的容器配置）
+# ═══════════════════════════════════════════════════
+
+# 默认输出目录
+output/
+export/output/
+
+# 旧版本输出（兼容）
+export/sh/output/
+
+# 用户自定义输出目录
+*-export/
+*-backup/
+docker-configs/
+docker-exports/
+
+# ═══════════════════════════════════════════════════
+# 敏感文件（重要！）
+# ═══════════════════════════════════════════════════
+
+# 环境变量文件（包含敏感信息）
+.env
+.env.local
+.env.production
+.env.development
+.env.staging
+.env.secret
+*.env
+
+# 例外：允许 .env.example 模板文件
+!.env.example
+!**/.env.example
+
+# 密钥和证书
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+privatekey.*
+private_key.*
+
+# 密码文件
+passwords.txt
+secrets.txt
+credentials.txt
+
+# ═══════════════════════════════════════════════════
+# 临时文件和缓存
+# ═══════════════════════════════════════════════════
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# 缓存目录
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# ═══════════════════════════════════════════════════
+# 日志文件
+# ═══════════════════════════════════════════════════
+
+# 通用日志
+*.log
+logs/
+*.log.*
+log/
+
+# Docker 日志
+docker-*.log
+compose-*.log
+
+# 脚本运行日志
+export-*.log
+backup-*.log
+
+# ═══════════════════════════════════════════════════
+# 数据目录
+# ═══════════════════════════════════════════════════
+
+# 数据存储
+data/
+volumes/
+storage/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# ═══════════════════════════════════════════════════
+# 压缩和归档文件
+# ═══════════════════════════════════════════════════
+
+# 备份归档
+*.tar
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.zip
+*.rar
+*.7z
+
+# 例外：允许文档中的示例压缩包
+!docs/**/*.tar.gz
+!docs/**/*.zip
+
+# ═══════════════════════════════════════════════════
+# 操作系统生成的文件
+# ═══════════════════════════════════════════════════
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ═══════════════════════════════════════════════════
+# IDE 和编辑器
+# ═══════════════════════════════════════════════════
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*.swn
+.vim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+.elc
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ═══════════════════════════════════════════════════
+# 版本控制
+# ═══════════════════════════════════════════════════
+
+# Git
+.git/
+*.orig
+*.rej
+
+# ═══════════════════════════════════════════════════
+# 测试和开发
+# ═══════════════════════════════════════════════════
+
+# 测试输出
+test-output/
+test-results/
+coverage/
+.pytest_cache/
+
+# 开发环境
+venv/
+env/
+.venv/
+.env.dev/
+
+# Node.js（如果有前端）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ═══════════════════════════════════════════════════
+# Docker 相关
+# ═══════════════════════════════════════════════════
+
+# Docker Compose 覆盖文件（本地配置）
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Docker 数据卷
+.docker/
+
+# ═══════════════════════════════════════════════════
+# 项目特定
+# ═══════════════════════════════════════════════════
+
+# 用户容器列表（可能包含敏感容器名）
+containers.txt
+my-containers.txt
+container-list.txt
+
+# 自定义敏感关键词配置（用户自定义）
+# 注意：config 文件默认不被忽略（只包含关键词，非敏感数据）
+# config.example 是示例模板，应该提交到 Git
+# 如果您的关键词本身敏感，取消下方注释：
+# export/sh/config
+
+# 允许 config.example 模板文件
+!export/sh/config.example
+
+# 临时脚本
+test-*.sh
+tmp-*.sh
+debug-*.sh
+
+# 私有笔记
+notes.md
+todo.md
+private/
+
+# ═══════════════════════════════════════════════════
+# 安全扫描和审计
+# ═══════════════════════════════════════════════════
+
+# 安全扫描结果
+security-scan.txt
+vulnerability-report.txt
+audit-*.log
+
+# ═══════════════════════════════════════════════════
+# 其他
+# ═══════════════════════════════════════════════════
+
+# 大文件（超过 100MB 不应提交）
+*.iso
+*.dmg
+*.img
+
+# 个人配置
+.personal/
+personal/
+
+# ═══════════════════════════════════════════════════
+# 例外规则（明确允许的文件）
+# ═══════════════════════════════════════════════════
+
+# 允许所有 README
+!README.md
+!**/README.md
+
+# 允许所有文档
+!docs/**/*.md
+!**/*.md
+
+# 允许 .env.example 模板
+!.env.example
+!**/.env.example
+
+# 允许 .gitignore
+!.gitignore
+!**/.gitignore
+
+# 允许示例配置
+!**/example/
+!**/examples/
+!**/*example*.yml
+!**/*sample*.yml
+
+# ═══════════════════════════════════════════════════
+# 调试信息
+# ═══════════════════════════════════════════════════
+# 
+# 如果某个文件被意外忽略，使用以下命令检查原因：
+# git check-ignore -v <文件路径>
+#
+# 强制添加被忽略的文件：
+# git add -f <文件路径>
+#
+# ═══════════════════════════════════════════════════
+

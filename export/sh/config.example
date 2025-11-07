@@ -1,0 +1,135 @@
+# ═══════════════════════════════════════════════════════════════
+# Docker Export Compose - 自定义敏感关键词配置文件示例
+# ═══════════════════════════════════════════════════════════════
+# 版本: v2.2.1
+# 创建: 2025-11-06
+# 说明: 此文件用于自定义额外的敏感环境变量关键词和排除规则
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
+# 使用方法 / Usage
+# ═══════════════════════════════════════════════════════════════
+#
+# 1. 复制此文件：cp config.example config
+# 2. 编辑 config 文件，添加您的自定义规则
+# 3. 运行脚本，自动加载配置
+#
+# 语法规则：
+# - 每行一个关键词（大小写不敏感）
+# - 使用 # 开头表示注释（整行）
+# - 使用 ! 开头表示排除（不视为敏感）⭐
+# - 空行会被忽略
+# - 只允许字母、数字、下划线、横杠
+#
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
+# 添加敏感关键词 / Add Sensitive Keywords
+# ═══════════════════════════════════════════════════════════════
+# 作用：标记包含这些关键词的变量为敏感
+#
+# 示例 / Examples:
+
+# 公司特定的敏感变量
+# MYCOMPANY_SECRET
+# COMPANY_API_KEY
+# INTERNAL_TOKEN
+# PRIVATE_SERVICE_KEY
+
+# 项目特定的敏感变量
+# PROJECT_AUTH_TOKEN
+# CUSTOM_ENCRYPTION_KEY
+# GAME_SERVER_KEY
+
+# ═══════════════════════════════════════════════════════════════
+# 排除关键词（使用 ! 开头）/ Exclude Keywords (Use ! prefix) ⭐
+# ═══════════════════════════════════════════════════════════════
+# 作用：即使变量名包含敏感关键词，也不视为敏感
+# 优先级：排除规则优先级最高，可以覆盖内置和自定义关键词
+#
+# 使用场景 / Use Cases:
+# - 公开的数据库连接（只读）
+# - 非敏感的配置 URL
+# - 已脱敏的测试数据
+# - 演示环境变量
+#
+# 示例 / Examples:
+
+# 公开的配置（虽然包含敏感关键词）
+# !PUBLIC_DATABASE_URL        # 虽然包含 DATABASE_URL，但这是公开的
+# !READONLY_DATABASE_URL      # 只读数据库连接
+# !API_ENDPOINT_URL           # 只是 API 地址，不含密钥
+
+# 演示/测试数据
+# !DEMO_PASSWORD              # 虽然包含 PASSWORD，但这是演示密码
+# !TEST_SECRET_KEY            # 虽然包含 SECRET，但这是测试密钥
+# !EXAMPLE_API_TOKEN          # 示例令牌
+
+# 非敏感的路径或配置
+# !CONFIG_SECRET_PATH         # 只是路径名，不是真正的密钥
+# !SERVICE_KEY_NAME           # 服务密钥的名称，不是密钥本身
+
+# ═══════════════════════════════════════════════════════════════
+# 内置关键词（无需添加，已自动包含）/ Built-in Keywords
+# ═══════════════════════════════════════════════════════════════
+# 以下关键词已内置在脚本中，无需添加到此文件
+# The following keywords are built-in, no need to add here
+#
+# PASSWORD, PASSWD, PWD, PASS
+# SECRET, TOKEN, KEY, APIKEY
+# API_KEY, API_SECRET, API_TOKEN
+# ACCESS_KEY, ACCESS_TOKEN, ACCESS_SECRET
+# PRIVATE_KEY, PUBLIC_KEY, SSH_KEY
+# AUTH, AUTHENTICATION, AUTHORIZATION
+# CREDENTIALS, CREDENTIAL
+# SESSION, SESSION_KEY, SESSION_SECRET
+# OAUTH, OAUTH_TOKEN, OAUTH_SECRET
+# CERT, CERTIFICATE, SSL, TLS
+# PRIVATE, PEM, P12, PKCS
+# SALT, HASH, ENCRYPTION, DECRYPT
+# CIPHER, AES, RSA
+# DATABASE_URL, DB_PASSWORD, DB_USER
+# CONNECTION_STRING, CONN_STR
+# MYSQL_PASSWORD, POSTGRES_PASSWORD
+# MONGO_PASSWORD, REDIS_PASSWORD
+# ADMIN, ROOT, SUPERUSER
+# ADMIN_PASSWORD, ROOT_PASSWORD
+# AWS_SECRET, AWS_ACCESS, AWS_KEY
+# AZURE_, GCP_, GOOGLE_, CLOUD_, S3_
+# SIGNING_KEY, JWT_SECRET, JWT_KEY
+# WEBHOOK_SECRET, ENCRYPTION_KEY
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
+# 在下方添加您的配置 / Add your configuration below
+# ═══════════════════════════════════════════════════════════════
+
+# 添加敏感关键词（取消注释以启用）
+# Add sensitive keywords (uncomment to enable)
+#
+
+# 排除特定变量（取消注释以启用）
+# Exclude specific variables (uncomment to enable)
+#
+
+# ═══════════════════════════════════════════════════════════════
+# 实用提示 / Useful Tips
+# ═══════════════════════════════════════════════════════════════
+#
+# 1. 添加关键词（部分匹配）：
+#    COMPANY_SECRET → 会匹配 MY_COMPANY_SECRET, COMPANY_SECRET_KEY 等
+#
+# 2. 排除变量（精确匹配）：
+#    !PUBLIC_PASSWORD → 只排除完全是 PUBLIC_PASSWORD 的变量
+#
+# 3. 查看加载结果：
+#    运行脚本时会显示加载的关键词和排除规则
+#
+# 4. 验证效果：
+#    检查生成的 .env.example 文件，查看哪些被标记为敏感
+#
+# 5. 临时禁用：
+#    重命名此文件（如 config.bak）或清空内容
+#
+# ═══════════════════════════════════════════════════════════════
+
