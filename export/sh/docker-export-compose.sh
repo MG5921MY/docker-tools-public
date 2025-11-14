@@ -29,7 +29,7 @@ NC='\033[0m'
 # ============================================
 SCRIPT_NAME=$(basename "$0")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="2.2.2"
+VERSION="2.3.0"
 OUTPUT_DIR="./output"  # 默认输出到 ./output 目录
 EXPORT_TYPE="yml"  # 默认类型：yml
 EXPORT_COUNT=0
@@ -40,6 +40,7 @@ MUST_OUTPUT="false"      # 强制输出到核心目录：默认关闭
 QUIET_MODE="false"       # 安静模式：默认关闭
 DRY_RUN="false"          # 模拟运行：默认关闭
 OVERWRITE_MODE="false"   # 覆盖模式：默认关闭
+CLEAN_MODE="false"       # 清洁模式：默认关闭（启用后不生成注释和建议）
 CONFIG_FILE="$SCRIPT_DIR/config"  # 自定义敏感关键词配置文件
 CUSTOM_KEYWORDS=()  # 自定义敏感关键词数组
 EXCLUDED_KEYWORDS=()  # 排除的关键词数组（不视为敏感）
@@ -80,6 +81,7 @@ ${YELLOW}OPTIONS:${NC}
     --quiet                 Quiet mode, minimal output
     --privacy               Privacy mode: mask host paths in volumes (default: off)
     --must-output           Force output to critical system directories (DANGEROUS!)
+    --clean                 Clean mode: generate minimal YAML without comments (default: off)
     --type <TYPE>           Export type: yml or env (default: yml)
                             yml - Only docker-compose.yml
                             env - docker-compose.yml + .env (with ${VAR} refs)
@@ -185,6 +187,7 @@ ${YELLOW}选项：${NC}
     --quiet                 安静模式，最小化输出
     --privacy               隐私模式：隐藏数据卷主机路径（默认：关闭）
     --must-output           强制输出到系统核心目录（危险！）
+    --clean                 清洁模式：生成简洁的 YAML 文件，不包含注释和建议（默认：关闭）
     --type <类型>           导出类型：yml 或 env（默认：yml）
                             yml - 仅导出 docker-compose.yml
                             env - 导出 docker-compose.yml + .env（使用 ${变量名} 引用）
@@ -273,9 +276,15 @@ ${GREEN}Docker Export to Compose${NC}
 Version: $VERSION
 Author: clearlove.ymg
 License: MIT License
-Date: 2025-11-06
+Date: 2025-11-11
 
-${YELLOW}New Features in v2.2:${NC}
+${YELLOW}New Features in v2.3:${NC}
+  ✓ Clean mode (--clean): Generate minimal YAML without comments
+  ✓ Fixed network configuration: Use 'networks' instead of 'network_mode'
+  ✓ Fixed resource limits: Use standard format (mem_limit/cpus) for non-Swarm
+  ✓ Auto-detect Swarm mode for proper resource limit format
+
+${YELLOW}Features in v2.2:${NC}
   ✓ Privacy mode (--privacy): Mask host paths in volumes
   ✓ Enhanced security: Critical directory protection with 3-step confirmation
   ✓ Container name validation: Prevent path traversal attacks
@@ -776,15 +785,27 @@ convert_container() {
     local NETWORK_MODE=$(docker inspect "$container" --format='{{.HostConfig.NetworkMode}}')
     local STATUS=$(docker inspect "$container" --format='{{.State.Status}}')
 
+    # 检测是否为 Swarm 模式
+    local IS_SWARM="false"
+    if docker info 2>/dev/null | grep -q "Swarm: active"; then
+        IS_SWARM="true"
+    fi
+
     # 生成 docker-compose.yml
     {
-        echo "# Docker Compose 配置"
-        echo "# 从容器 '$container' 自动生成"
-        echo "# 容器状态：$STATUS"
-        echo "# 生成时间：$(date '+%Y-%m-%d %H:%M:%S')"
-        echo "# "
-        echo "# ⚠️ 注意：请检查并调整配置后使用"
-        echo "# ⚠️ 特别是端口、数据卷路径、环境变量等"
+        # 文件头注释（清洁模式下简化）
+        if [ "$CLEAN_MODE" = "true" ]; then
+            echo "# Generated from container: $container"
+            echo "# Date: $(date '+%Y-%m-%d %H:%M:%S')"
+        else
+            echo "# Docker Compose 配置"
+            echo "# 从容器 '$container' 自动生成"
+            echo "# 容器状态：$STATUS"
+            echo "# 生成时间：$(date '+%Y-%m-%d %H:%M:%S')"
+            echo "# "
+            echo "# ⚠️ 注意：请检查并调整配置后使用"
+            echo "# ⚠️ 特别是端口、数据卷路径、环境变量等"
+        fi
         echo ""
         echo "version: '3.8'"
         echo ""
@@ -799,17 +820,29 @@ convert_container() {
 
         # 重启策略
         if [ -n "$RESTART" ] && [ "$RESTART" != "no" ]; then
-            # 推荐改为 unless-stopped
             if [ "$RESTART" = "always" ]; then
-                echo "    restart: unless-stopped  # 原为 always，推荐 unless-stopped"
+                if [ "$CLEAN_MODE" = "true" ]; then
+                    echo "    restart: unless-stopped"
+                else
+                    echo "    restart: unless-stopped  # 原为 always，推荐 unless-stopped"
+                fi
             else
                 echo "    restart: $RESTART"
             fi
         fi
 
-        # 网络模式
+        # 网络配置（修正：使用 networks 而非 network_mode）
+        local NEEDS_NETWORK_SECTION="false"
         if [ "$NETWORK_MODE" != "default" ] && [ "$NETWORK_MODE" != "bridge" ]; then
-            echo "    network_mode: \"$NETWORK_MODE\""
+            # 特殊网络模式（host, none, container:xxx）保持使用 network_mode
+            if [[ "$NETWORK_MODE" == "host" ]] || [[ "$NETWORK_MODE" == "none" ]] || [[ "$NETWORK_MODE" =~ ^container: ]]; then
+                echo "    network_mode: \"$NETWORK_MODE\""
+            else
+                # 自定义网络：使用 networks 配置
+                echo "    networks:"
+                echo "      - $NETWORK_MODE"
+                NEEDS_NETWORK_SECTION="true"
+            fi
         fi
 
         # 端口映射
@@ -840,7 +873,11 @@ convert_container() {
                             mount_type="${container_path##*:}"
                             container_path="${container_path%:*}"
                         fi
-                        echo "      - /path/to/data:$container_path${mount_type:+:$mount_type}  # 原路径已隐藏以保护隐私 / Original path masked for privacy"
+                        if [ "$CLEAN_MODE" = "true" ]; then
+                            echo "      - /path/to/data:$container_path${mount_type:+:$mount_type}"
+                        else
+                            echo "      - /path/to/data:$container_path${mount_type:+:$mount_type}  # 原路径已隐藏以保护隐私 / Original path masked for privacy"
+                        fi
                     else
                         # 正常模式：显示完整路径
                         echo "      - $vol"
@@ -937,14 +974,18 @@ convert_container() {
             # 在 docker-compose.yml 中处理环境变量
             if [ "$has_env" = true ] || [ "$has_excluded" = true ]; then
                 echo ""
-                echo "    # 环境变量配置 / Environment Variables"
+                if [ "$CLEAN_MODE" != "true" ]; then
+                    echo "    # 环境变量配置 / Environment Variables"
+                fi
                 echo "    environment:"
 
                 # 先输出从 .env 文件加载的变量（使用 ${VAR} 引用）
                 if [ "$has_env" = true ]; then
-                    echo "      # ─────────────────────────────────────────────"
-                    echo "      # 从 .env 文件加载 / Loaded from .env file"
-                    echo "      # ─────────────────────────────────────────────"
+                    if [ "$CLEAN_MODE" != "true" ]; then
+                        echo "      # ─────────────────────────────────────────────"
+                        echo "      # 从 .env 文件加载 / Loaded from .env file"
+                        echo "      # ─────────────────────────────────────────────"
+                    fi
                     for var_name in "${env_vars_for_file[@]}"; do
                         echo "      - ${var_name}=\${${var_name}}"
                     done
@@ -952,13 +993,19 @@ convert_container() {
 
                 # 再输出被排除的变量（直接明文）
                 if [ "$has_excluded" = true ]; then
-                    echo "      # ─────────────────────────────────────────────"
-                    echo "      # 排除变量（直接设置，不使用 .env）/ Excluded (Direct)"
-                    echo "      # 说明：这些变量被 config 文件标记为非敏感"
-                    echo "      # Note: Marked as non-sensitive in config file"
-                    echo "      # ─────────────────────────────────────────────"
+                    if [ "$CLEAN_MODE" != "true" ]; then
+                        echo "      # ─────────────────────────────────────────────"
+                        echo "      # 排除变量（直接设置，不使用 .env）/ Excluded (Direct)"
+                        echo "      # 说明：这些变量被 config 文件标记为非敏感"
+                        echo "      # Note: Marked as non-sensitive in config file"
+                        echo "      # ─────────────────────────────────────────────"
+                    fi
                     for env in "${env_vars_excluded[@]}"; do
-                        echo "      - $env  # 排除变量 / Excluded"
+                        if [ "$CLEAN_MODE" = "true" ]; then
+                            echo "      - $env"
+                        else
+                            echo "      - $env  # 排除变量 / Excluded"
+                        fi
                     done
                 fi
             fi
@@ -979,7 +1026,7 @@ convert_container() {
 
             if [ ${#env_list[@]} -gt 0 ]; then
                 echo ""
-                if [ "$has_sensitive" = true ]; then
+                if [ "$has_sensitive" = true ] && [ "$CLEAN_MODE" != "true" ]; then
                     echo "    # ⚠️ 警告 / WARNING: 以下环境变量可能包含敏感信息"
                     echo "    # ⚠️ Environment variables below may contain SENSITIVE data"
                     echo "    # 建议使用 --type env 模式以分离敏感信息"
@@ -987,10 +1034,14 @@ convert_container() {
                 fi
                 echo "    environment:"
                 for env in "${env_list[@]}"; do
-                    if is_sensitive_env "$env"; then
-                        echo "      - $env  # ⚠️ 敏感信息 / SENSITIVE"
-                    else
+                    if [ "$CLEAN_MODE" = "true" ]; then
                         echo "      - $env"
+                    else
+                        if is_sensitive_env "$env"; then
+                            echo "      - $env  # ⚠️ 敏感信息 / SENSITIVE"
+                        else
+                            echo "      - $env"
+                        fi
                     fi
                 done
             fi
@@ -1056,148 +1107,186 @@ convert_container() {
         fi
 
         # 日志配置（建议性配置，注释形式）
-        echo ""
-        echo "    # ═══════════════════════════════════════════════════"
-        echo "    # 日志配置（推荐启用）/ Logging Configuration (Recommended)"
-        echo "    # 说明：限制日志大小，防止磁盘占满"
-        echo "    # Note: Limit log size to prevent disk full"
-        echo "    # 使用方法：取消下方注释以启用"
-        echo "    # Usage: Uncomment below to enable"
-        echo "    # ═══════════════════════════════════════════════════"
-        echo "    # logging:"
-        echo "    #   driver: json-file"
-        echo "    #   options:"
-        echo "    #     max-size: \"10m\"    # 单个日志文件最大 10MB"
-        echo "    #     max-file: \"3\"       # 最多保留 3 个日志文件"
+        if [ "$CLEAN_MODE" != "true" ]; then
+            echo ""
+            echo "    # ═══════════════════════════════════════════════════"
+            echo "    # 日志配置（推荐启用）/ Logging Configuration (Recommended)"
+            echo "    # 说明：限制日志大小，防止磁盘占满"
+            echo "    # Note: Limit log size to prevent disk full"
+            echo "    # 使用方法：取消下方注释以启用"
+            echo "    # Usage: Uncomment below to enable"
+            echo "    # ═══════════════════════════════════════════════════"
+            echo "    # logging:"
+            echo "    #   driver: json-file"
+            echo "    #   options:"
+            echo "    #     max-size: \"10m\"    # 单个日志文件最大 10MB"
+            echo "    #     max-file: \"3\"       # 最多保留 3 个日志文件"
+        fi
 
-        # 资源限制
+        # 资源限制（修正：根据 Swarm 模式使用不同格式）
         local MEMORY=$(docker inspect "$container" --format='{{.HostConfig.Memory}}')
         local CPUS=$(docker inspect "$container" --format='{{.HostConfig.NanoCpus}}')
 
         if [ "$MEMORY" != "0" ] || [ "$CPUS" != "0" ]; then
             echo ""
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    # 资源限制（来自原容器配置）/ Resource Limits (From Original)"
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    deploy:"
-            echo "      resources:"
-            echo "        limits:"
 
-            if [ "$CPUS" != "0" ]; then
-                local CPU_LIMIT=$(awk "BEGIN {printf \"%.2f\", $CPUS / 1000000000}")
-                echo "          cpus: '$CPU_LIMIT'  # 原容器的 CPU 限制"
-            fi
+            if [ "$IS_SWARM" = "true" ]; then
+                # Swarm 模式：使用 deploy.resources
+                if [ "$CLEAN_MODE" != "true" ]; then
+                    echo "    # 资源限制（Swarm 模式）/ Resource Limits (Swarm Mode)"
+                fi
+                echo "    deploy:"
+                echo "      resources:"
+                echo "        limits:"
 
-            if [ "$MEMORY" != "0" ]; then
-                local MEM_MB=$((MEMORY / 1024 / 1024))
-                echo "          memory: ${MEM_MB}M  # 原容器的内存限制"
+                if [ "$CPUS" != "0" ]; then
+                    local CPU_LIMIT=$(awk "BEGIN {printf \"%.2f\", $CPUS / 1000000000}")
+                    echo "          cpus: '$CPU_LIMIT'"
+                fi
+
+                if [ "$MEMORY" != "0" ]; then
+                    local MEM_MB=$((MEMORY / 1024 / 1024))
+                    echo "          memory: ${MEM_MB}M"
+                fi
+            else
+                # 非 Swarm 模式：使用标准格式
+                if [ "$CLEAN_MODE" != "true" ]; then
+                    echo "    # 资源限制 / Resource Limits"
+                fi
+
+                if [ "$MEMORY" != "0" ]; then
+                    local MEM_MB=$((MEMORY / 1024 / 1024))
+                    echo "    mem_limit: ${MEM_MB}M"
+                fi
+
+                if [ "$CPUS" != "0" ]; then
+                    local CPU_LIMIT=$(awk "BEGIN {printf \"%.2f\", $CPUS / 1000000000}")
+                    echo "    cpus: $CPU_LIMIT"
+                fi
             fi
         else
             # 原容器没有资源限制，提供建议配置（注释形式）
-            echo ""
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    # 资源限制（推荐配置）/ Resource Limits (Recommended)"
-            echo "    # 说明：原容器未配置资源限制，建议根据实际需求设置"
-            echo "    # Note: Original container has no limits, set based on your needs"
-            echo "    # 使用方法：取消下方注释并调整数值"
-            echo "    # Usage: Uncomment and adjust values below"
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    # deploy:"
-            echo "    #   resources:"
-            echo "    #     limits:"
-            echo "    #       cpus: '1.0'      # CPU 核心数限制"
-            echo "    #       memory: 512M     # 内存限制"
-            echo "    #     reservations:      # 预留资源（可选）"
-            echo "    #       cpus: '0.5'"
-            echo "    #       memory: 256M"
+            if [ "$CLEAN_MODE" != "true" ]; then
+                echo ""
+                echo "    # ═══════════════════════════════════════════════════"
+                echo "    # 资源限制（推荐配置）/ Resource Limits (Recommended)"
+                echo "    # 说明：原容器未配置资源限制，建议根据实际需求设置"
+                echo "    # Note: Original container has no limits, set based on your needs"
+                echo "    # 使用方法：取消下方注释并调整数值"
+                echo "    # Usage: Uncomment and adjust values below"
+                echo "    # ═══════════════════════════════════════════════════"
+                if [ "$IS_SWARM" = "true" ]; then
+                    echo "    # deploy:"
+                    echo "    #   resources:"
+                    echo "    #     limits:"
+                    echo "    #       cpus: '1.0'"
+                    echo "    #       memory: 512M"
+                else
+                    echo "    # mem_limit: 512M"
+                    echo "    # cpus: 1.0"
+                fi
+            fi
         fi
 
         # 健康检查
-        local HEALTHCHECK=$(docker inspect "$container" --format='{{json .Config.Healthcheck}}')
-        if [ "$HEALTHCHECK" != "null" ]; then
-            echo ""
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    # 健康检查（来自原容器配置）/ Health Check (From Original)"
-            echo "    # 说明：原容器配置了健康检查"
-            echo "    # Note: Original container has health check configured"
-            echo "    # ⚠️ 注意：需要根据实际情况调整下方配置"
-            echo "    # ⚠️ Warning: Adjust the configuration below as needed"
-            echo "    # 使用方法：取消下方注释并根据应用调整"
-            echo "    # Usage: Uncomment and adjust for your application"
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    # healthcheck:"
-            echo "    #   test: [\"CMD\", \"curl\", \"-f\", \"http://localhost\"]  # 根据应用调整"
-            echo "    #   interval: 30s      # 检查间隔"
-            echo "    #   timeout: 10s       # 超时时间"
-            echo "    #   retries: 3         # 重试次数"
-            echo "    #   start_period: 40s  # 启动宽限期（可选）"
-        else
-            # 原容器没有健康检查，提供示例（注释形式）
-            echo ""
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    # 健康检查（推荐配置）/ Health Check (Recommended)"
-            echo "    # 说明：原容器未配置健康检查，建议根据应用类型添加"
-            echo "    # Note: No health check in original, recommend adding based on app type"
-            echo "    # 使用方法：取消下方注释并根据应用调整"
-            echo "    # Usage: Uncomment and adjust for your application"
-            echo "    # ═══════════════════════════════════════════════════"
-            echo "    # 示例1：HTTP 服务"
-            echo "    # healthcheck:"
-            echo "    #   test: [\"CMD\", \"curl\", \"-f\", \"http://localhost:80/health\"]"
-            echo "    #   interval: 30s"
-            echo "    #   timeout: 10s"
-            echo "    #   retries: 3"
-            echo "    #"
-            echo "    # 示例2：数据库服务"
-            echo "    # healthcheck:"
-            echo "    #   test: [\"CMD\", \"mysqladmin\", \"ping\", \"-h\", \"localhost\"]"
-            echo "    #   interval: 30s"
-            echo "    #   timeout: 5s"
-            echo "    #   retries: 3"
-            echo "    #"
-            echo "    # 示例3：通用检查"
-            echo "    # healthcheck:"
-            echo "    #   test: [\"CMD-SHELL\", \"echo ok\"]"
-            echo "    #   interval: 30s"
-            echo "    #   timeout: 3s"
-            echo "    #   retries: 3"
+        if [ "$CLEAN_MODE" != "true" ]; then
+            local HEALTHCHECK=$(docker inspect "$container" --format='{{json .Config.Healthcheck}}')
+            if [ "$HEALTHCHECK" != "null" ]; then
+                echo ""
+                echo "    # ═══════════════════════════════════════════════════"
+                echo "    # 健康检查（来自原容器配置）/ Health Check (From Original)"
+                echo "    # 说明：原容器配置了健康检查"
+                echo "    # Note: Original container has health check configured"
+                echo "    # ⚠️ 注意：需要根据实际情况调整下方配置"
+                echo "    # ⚠️ Warning: Adjust the configuration below as needed"
+                echo "    # 使用方法：取消下方注释并根据应用调整"
+                echo "    # Usage: Uncomment and adjust for your application"
+                echo "    # ═══════════════════════════════════════════════════"
+                echo "    # healthcheck:"
+                echo "    #   test: [\"CMD\", \"curl\", \"-f\", \"http://localhost\"]  # 根据应用调整"
+                echo "    #   interval: 30s      # 检查间隔"
+                echo "    #   timeout: 10s       # 超时时间"
+                echo "    #   retries: 3         # 重试次数"
+                echo "    #   start_period: 40s  # 启动宽限期（可选）"
+            else
+                # 原容器没有健康检查，提供示例（注释形式）
+                echo ""
+                echo "    # ═══════════════════════════════════════════════════"
+                echo "    # 健康检查（推荐配置）/ Health Check (Recommended)"
+                echo "    # 说明：原容器未配置健康检查，建议根据应用类型添加"
+                echo "    # Note: No health check in original, recommend adding based on app type"
+                echo "    # 使用方法：取消下方注释并根据应用调整"
+                echo "    # Usage: Uncomment and adjust for your application"
+                echo "    # ═══════════════════════════════════════════════════"
+                echo "    # 示例1：HTTP 服务"
+                echo "    # healthcheck:"
+                echo "    #   test: [\"CMD\", \"curl\", \"-f\", \"http://localhost:80/health\"]"
+                echo "    #   interval: 30s"
+                echo "    #   timeout: 10s"
+                echo "    #   retries: 3"
+                echo "    #"
+                echo "    # 示例2：数据库服务"
+                echo "    # healthcheck:"
+                echo "    #   test: [\"CMD\", \"mysqladmin\", \"ping\", \"-h\", \"localhost\"]"
+                echo "    #   interval: 30s"
+                echo "    #   timeout: 5s"
+                echo "    #   retries: 3"
+                echo "    #"
+                echo "    # 示例3：通用检查"
+                echo "    # healthcheck:"
+                echo "    #   test: [\"CMD-SHELL\", \"echo ok\"]"
+                echo "    #   interval: 30s"
+                echo "    #   timeout: 3s"
+                echo "    #   retries: 3"
+            fi
         fi
 
-        echo ""
-        echo "# ════════════════════════════════════════════════"
-        echo "# 可选配置（根据需要启用）/ Optional Configurations"
-        echo "# ════════════════════════════════════════════════"
-        echo "#"
-        echo "# 如果需要自定义网络（多容器互联时）："
-        echo "# If you need custom network (for multi-container communication):"
-        echo "#"
-        echo "# networks:"
-        echo "#   app-network:"
-        echo "#     driver: bridge"
-        echo "#"
-        echo "# 然后在服务中添加："
-        echo "# Then add to service:"
-        echo "#   networks:"
-        echo "#     - app-network"
-        echo ""
-        echo "# ════════════════════════════════════════════════"
-        echo "# 使用方法 / Usage："
-        echo "# ════════════════════════════════════════════════"
-        echo "#   docker compose up -d      # 启动 / Start"
-        echo "#   docker compose ps         # 查看状态 / Check status"
-        echo "#   docker compose logs -f    # 查看日志 / View logs"
-        echo "#   docker compose down       # 停止并删除 / Stop and remove"
-        echo "#   docker compose restart    # 重启 / Restart"
-        echo "# ════════════════════════════════════════════════"
-        echo "#"
-        echo "# ⚠️ 重要提示 / Important Notes:"
-        echo "#   1. 启动前请检查配置是否正确"
-        echo "#      Check configuration before starting"
-        echo "#   2. 根据需要取消注释可选配置"
-        echo "#      Uncomment optional configs as needed"
-        echo "#   3. 验证配置：docker compose config"
-        echo "#      Validate: docker compose config"
-        echo "# ════════════════════════════════════════════════"
+        # 网络声明部分（如果需要自定义网络）
+        if [ "$NEEDS_NETWORK_SECTION" = "true" ]; then
+            echo ""
+            echo "networks:"
+            echo "  $NETWORK_MODE:"
+            echo "    external: true"
+        fi
+
+        # 可选配置和使用说明（仅在非清洁模式下显示）
+        if [ "$CLEAN_MODE" != "true" ]; then
+            echo ""
+            echo "# ════════════════════════════════════════════════"
+            echo "# 可选配置（根据需要启用）/ Optional Configurations"
+            echo "# ════════════════════════════════════════════════"
+            echo "#"
+            echo "# 如果需要自定义网络（多容器互联时）："
+            echo "# If you need custom network (for multi-container communication):"
+            echo "#"
+            echo "# networks:"
+            echo "#   app-network:"
+            echo "#     driver: bridge"
+            echo "#"
+            echo "# 然后在服务中添加："
+            echo "# Then add to service:"
+            echo "#   networks:"
+            echo "#     - app-network"
+            echo ""
+            echo "# ════════════════════════════════════════════════"
+            echo "# 使用方法 / Usage："
+            echo "# ════════════════════════════════════════════════"
+            echo "#   docker compose up -d      # 启动 / Start"
+            echo "#   docker compose ps         # 查看状态 / Check status"
+            echo "#   docker compose logs -f    # 查看日志 / View logs"
+            echo "#   docker compose down       # 停止并删除 / Stop and remove"
+            echo "#   docker compose restart    # 重启 / Restart"
+            echo "# ════════════════════════════════════════════════"
+            echo "#"
+            echo "# ⚠️ 重要提示 / Important Notes:"
+            echo "#   1. 启动前请检查配置是否正确"
+            echo "#      Check configuration before starting"
+            echo "#   2. 根据需要取消注释可选配置"
+            echo "#      Uncomment optional configs as needed"
+            echo "#   3. 验证配置：docker compose config"
+            echo "#      Validate: docker compose config"
+            echo "# ════════════════════════════════════════════════"
+        fi
 
     } > "$compose_file"
 
@@ -1523,6 +1612,10 @@ main() {
                 MUST_OUTPUT="true"
                 shift
                 ;;
+            --clean)
+                CLEAN_MODE="true"
+                shift
+                ;;
             --type)
                 EXPORT_TYPE="$2"
                 if [ "$EXPORT_TYPE" != "yml" ] && [ "$EXPORT_TYPE" != "env" ]; then
@@ -1600,6 +1693,11 @@ main() {
     if [ "$PRIVACY_MODE" = "true" ]; then
         log_info "隐私模式已启用：主机路径将被隐藏"
         log_info "Privacy mode enabled: Host paths will be masked"
+    fi
+
+    if [ "$CLEAN_MODE" = "true" ]; then
+        log_info "清洁模式已启用：生成简洁的 YAML（无注释）"
+        log_info "Clean mode enabled: Generate minimal YAML without comments"
     fi
 
     # 根据模式执行
