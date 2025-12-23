@@ -1,0 +1,14 @@
+services:
+  docker-export-webui:
+    image: ghcr.io/mg5921my/docker-tools-public:latest
+    container_name: docker-export-webui
+    ports:
+      - "3080:3080"
+    environment:
+      DOCKER_EXPORT_AUTH_USER: "admin"
+      DOCKER_EXPORT_AUTH_PASSWORD: "change-me"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./output:/app/output
+      - ./data:/app/data
+    restart: unless-stopped

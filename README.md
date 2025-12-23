@@ -9,7 +9,7 @@
 [![Shell](https://img.shields.io/badge/shell-bash-orange.svg)](export/sh/docker-export-compose.sh)
 [![Security](https://img.shields.io/badge/security-enhanced-red.svg)](export/sh/SECURITY_GUIDE.md)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [文档](#-文档) • [更新日志](#-更新日志)
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [WebUI](#-docker-export-webui可选) • [文档](#-文档) • [更新日志](#-更新日志)
 
 </div>
 
@@ -24,6 +24,12 @@ DockerTools 是一个专业的 Docker 容器管理工具集，主要功能是将
 - ✅ **版本管理**：将容器配置纳入 Git 版本控制
 - ✅ **团队协作**：安全地分享容器配置（自动处理敏感信息）
 - ✅ **文档化**：自动生成完整的配置文档
+
+### 🆕 本次更新（CI/CD）
+
+- ✅ 新增 GitHub Actions：push `master` / push tag（`v*.*.*`）时自动构建并推送 Docker 镜像到 GHCR
+- ✅ 推送镜像标签：`latest`（默认分支）、版本号 tag（如 `v2.3.0`）、以及 `sha-xxxxxxx`（短提交号）
+- ✅ 工作流文件：`.github/workflows/docker-image.yml`
 
 ### ⚠️ 重要提醒
 
@@ -150,6 +156,126 @@ echo "mysql-db" >> containers.txt
     ├── .gitignore          # Git 忽略配置
     └── README.md           # 使用说明
 ```
+
+---
+
+## 🐳 Docker Export WebUI（可选）
+
+项目提供了一个可选的容器化 WebUI/HTTP 服务，用于在浏览器中触发导出与查看日志。
+
+本文只提供“快速入口”。更完整的部署说明、认证策略、Windows 注意事项与推荐部署模式，请以该文档为准：
+
+- `export/docker/README-docker.md`：[`export/docker/README-docker.md`](export/docker/README-docker.md)
+
+![Docker Export WebUI](image/docker-export-webui.png)
+
+### 功能介绍
+
+- 在浏览器中调用后端 API 触发 `docker-export-compose.sh` 执行导出
+- 查看执行状态与日志
+- 内置登录认证（支持修改密码；可在 WebUI 中开启 MFA/TOTP）
+
+### 方式 1：从 GHCR 拉取镜像并运行（推荐）
+
+> 注意：Docker 镜像引用要求仓库名必须小写。
+>
+> 例如 `MG5921MY` 需要写成 `mg5921my`，否则会出现：
+> `invalid reference format: repository name (...) must be lowercase`
+
+拉取镜像：
+
+```bash
+docker pull ghcr.io/mg5921my/docker-tools-public:latest
+```
+
+运行（Linux / WSL / Docker Desktop Linux 容器）：
+
+```bash
+docker run -d \
+  --name docker-export-webui \
+  -p 3080:3080 \
+  -e DOCKER_EXPORT_AUTH_USER=admin \
+  -e DOCKER_EXPORT_AUTH_PASSWORD=change-me \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v $(pwd)/output:/app/output \
+  -v $(pwd)/data:/app/data \
+  --restart unless-stopped \
+  ghcr.io/mg5921my/docker-tools-public:latest
+```
+
+浏览器访问：
+
+- `http://localhost:3080`
+
+### 方式 2：从源码构建镜像并运行
+
+构建入口：`export/docker/Dockerfile`（构建上下文为 `export/`）
+
+```bash
+docker build -f export/docker/Dockerfile -t docker-export-webui:local export
+```
+
+然后把上面 `docker run` 的镜像名替换为 `docker-export-webui:local` 即可。
+
+### 方式 3：docker compose（示例）
+
+如果你不想本地构建镜像，推荐直接使用 GHCR 的网络镜像编排（更适合新手）：
+
+- 使用网络镜像的 compose：`export/docker/docker-compose.ghcr.yml`
+
+```bash
+cd export/docker
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+> 如需更新到最新镜像，可先拉取：
+>
+> ```bash
+> docker compose -f docker-compose.ghcr.yml pull
+> docker compose -f docker-compose.ghcr.yml up -d
+> ```
+
+如果你需要从源码构建镜像再用 compose 启动，仓库也提供了本地构建示例：`export/docker/docker-compose.yml`
+
+```bash
+cd export/docker
+docker compose up -d
+```
+
+### 构建/运行参数说明
+
+#### 端口
+
+- `3080`：WebUI/HTTP 服务端口（容器内默认 `3080`）
+- 环境变量 `PORT`：可覆盖服务端口（例如 `-e PORT=3080`）
+
+#### 认证相关环境变量
+
+- `DOCKER_EXPORT_AUTH_USER`
+  - 默认：`admin`
+- `DOCKER_EXPORT_AUTH_PASSWORD`
+  - 强烈建议显式配置
+  - 若未配置：首次启动会生成随机密码并输出到容器日志（请用 `docker logs` 查看）
+
+#### 数据目录（持久化）
+
+- `DOCKER_EXPORT_DATA_DIR`
+  - 指定服务数据目录（默认 `/app/data`）
+  - 建议挂载：`-v $(pwd)/data:/app/data`，避免重建容器导致认证信息丢失
+
+#### Docker Socket（关键）
+
+- 必须挂载：`-v /var/run/docker.sock:/var/run/docker.sock`
+  - 用于容器内 `docker-cli` 调用宿主机 Docker，从而读取容器信息并导出
+
+### 免责声明与安全提示（必读）
+
+- 挂载 `docker.sock` 等同于将宿主机 Docker 控制权交给容器：**仅建议在受信任环境使用**
+- 请务必修改默认密码，避免内网被直接访问
+- 本工具仅导出容器配置信息，不包含数据卷实际数据备份
+- 使用前请阅读：
+  - [免责声明](DISCLAIMER.md)
+  - [数据备份重要提醒](DATA_BACKUP_NOTICE.md)
 
 ---
 
