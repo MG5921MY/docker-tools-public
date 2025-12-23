@@ -8,7 +8,8 @@ RUN set -eux; \
   if ! grep -q "/community" /etc/apk/repositories; then \
     echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VER}/community" >> /etc/apk/repositories; \
   fi; \
-  apk add --no-cache bash docker-cli libqrencode-tools
+  apk add --no-cache bash docker-cli libqrencode-tools; \
+  apk upgrade --no-cache
 
 # 拷贝脚本与 WebUI
 COPY sh ./sh
