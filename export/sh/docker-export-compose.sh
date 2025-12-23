@@ -49,7 +49,7 @@ EXCLUDED_KEYWORDS=()  # 排除的关键词数组（不视为敏感）
 # 核心系统目录列表（禁止直接输出）
 # ============================================
 CRITICAL_DIRS=(
-    "/bin" "/boot" "/dev" "/etc" "/lib" "/lib64"
+    "/bin" "/boot" "/dev" "/etc" "/lib" "/lib64" 
     "/proc" "/root" "/run" "/sbin" "/sys" "/usr"
     "/var/lib" "/var/log" "/var/run"
     "C:\\Windows" "C:\\Program Files" "C:\\Program Files (x86)"
@@ -110,12 +110,12 @@ ${YELLOW}EXAMPLES:${NC}
 
 ${YELLOW}OUTPUT STRUCTURE:${NC}
     Default output directory: ./output/
-
+    
     Type yml (default):
       ./output/<container-name>/docker-compose.yml
       ⚠️  WARNING: Contains environment variables in PLAIN TEXT
       ⚠️  Sensitive data may be exposed!
-
+    
     Type env (recommended for production):
       ./output/<container-name>/
         ├── docker-compose.yml (with \${VAR} references)
@@ -123,11 +123,11 @@ ${YELLOW}OUTPUT STRUCTURE:${NC}
         ├── .env.example (template, safe to share)
         ├── .gitignore
         └── README.md
-
+    
     If directory exists:
       ./output/<container-name>_1/docker-compose.yml
       ./output/<container-name>_2/docker-compose.yml
-
+    
     Privacy mode (--privacy):
       Host paths in volumes will be masked as /path/to/data
 
@@ -145,9 +145,9 @@ ${YELLOW}FILE FORMAT (for --file option):${NC}
 ${YELLOW}CUSTOM SENSITIVE KEYWORDS:${NC}
     You can create a 'config' file in the script directory to add
     custom sensitive keywords (one per line, # for comments).
-
+    
     If config file doesn't exist, it will be auto-created with examples.
-
+    
     Example config file:
     # My custom sensitive keywords
     COMPANY_SECRET
@@ -216,12 +216,12 @@ ${YELLOW}示例：${NC}
 
 ${YELLOW}输出结构：${NC}
     默认输出目录：./output/
-
+    
     yml 模式（默认）：
       ./output/<容器名>/docker-compose.yml
       ⚠️  警告：包含明文环境变量
       ⚠️  可能泄露敏感信息！
-
+    
     env 模式（生产环境推荐）：
       ./output/<容器名>/
         ├── docker-compose.yml（使用 \${变量名} 引用）
@@ -229,11 +229,11 @@ ${YELLOW}输出结构：${NC}
         ├── .env.example（模板，可安全分享）
         ├── .gitignore
         └── README.md
-
+    
     目录冲突时：
       ./output/<容器名>_1/docker-compose.yml
       ./output/<容器名>_2/docker-compose.yml
-
+    
     隐私模式（--privacy）：
       数据卷中的主机路径将被隐藏为 /path/to/data
 
@@ -251,9 +251,9 @@ ${YELLOW}文件格式（--file 选项）：${NC}
 ${YELLOW}自定义敏感关键词：${NC}
     您可以在脚本目录创建 'config' 文件来添加自定义敏感关键词
     （每行一个关键词，# 开头为注释）
-
+    
     如果 config 文件不存在，将自动创建包含示例的模板。
-
+    
     config 文件示例：
     # 我的自定义敏感关键词
     COMPANY_SECRET
@@ -332,7 +332,7 @@ log_success() {
 # ============================================
 create_config_template() {
     local config_file="$1"
-
+    
     cat > "$config_file" <<'CONFIG_EOF'
 # ═══════════════════════════════════════════════════════════════
 # Docker Export Compose - 自定义敏感关键词配置文件
@@ -416,12 +416,12 @@ CONFIG_EOF
 # ============================================
 load_custom_keywords() {
     local config_file="$1"
-
+    
     # 如果 config 文件不存在，创建模板
     if [ ! -f "$config_file" ]; then
         log_info "配置文件不存在，正在创建模板：$config_file"
         log_info "Config file not found, creating template: $config_file"
-
+        
         if create_config_template "$config_file"; then
             log_success "配置文件模板已创建：$config_file"
             log_success "Config template created: $config_file"
@@ -433,34 +433,34 @@ load_custom_keywords() {
         fi
         return 0
     fi
-
+    
     # 读取配置文件
     log_info "加载自定义敏感关键词配置：$config_file"
     log_info "Loading custom sensitive keywords config: $config_file"
-
+    
     local line_count=0
     local add_count=0
     local exclude_count=0
     local error_count=0
-
+    
     while IFS= read -r line || [ -n "$line" ]; do
         line_count=$((line_count + 1))
-
+        
         # 移除前后空格
         line=$(echo "$line" | xargs 2>/dev/null)
-
+        
         # 跳过空行
         [ -z "$line" ] && continue
-
+        
         # 跳过注释行
         [[ "$line" =~ ^# ]] && continue
-
+        
         # 检查是否为排除关键词（! 开头）
         if [[ "$line" =~ ^! ]]; then
             # 移除 ! 前缀
             local keyword="${line#!}"
             keyword=$(echo "$keyword" | xargs 2>/dev/null)
-
+            
             # 验证格式（只允许字母、数字、下划线、横杠）
             if [[ "$keyword" =~ ^[A-Za-z0-9_-]+$ ]]; then
                 EXCLUDED_KEYWORDS+=("$keyword")
@@ -487,12 +487,12 @@ load_custom_keywords() {
         log_error "Failed to read config file: $config_file"
         return 1
     }
-
+    
     # 显示加载的自定义关键词
     if [ $add_count -gt 0 ]; then
         log_success "成功加载 $add_count 个自定义敏感关键词"
         log_success "Loaded $add_count custom sensitive keywords"
-
+        
         if [ "$QUIET_MODE" != "true" ]; then
             log_info "自定义敏感关键词："
             log_info "Custom sensitive keywords:"
@@ -501,12 +501,12 @@ load_custom_keywords() {
             done
         fi
     fi
-
+    
     # 显示加载的排除关键词
     if [ $exclude_count -gt 0 ]; then
         log_success "成功加载 $exclude_count 个排除关键词"
         log_success "Loaded $exclude_count excluded keywords"
-
+        
         if [ "$QUIET_MODE" != "true" ]; then
             log_info "排除关键词（不视为敏感）："
             log_info "Excluded keywords (not treated as sensitive):"
@@ -515,18 +515,18 @@ load_custom_keywords() {
             done
         fi
     fi
-
+    
     # 如果都没有加载到
     if [ $add_count -eq 0 ] && [ $exclude_count -eq 0 ]; then
         log_info "未找到有效的自定义配置"
         log_info "No valid custom configuration found"
     fi
-
+    
     if [ $error_count -gt 0 ]; then
         log_warn "跳过了 $error_count 个无效行"
         log_warn "Skipped $error_count invalid lines"
     fi
-
+    
     return 0
 }
 
@@ -536,7 +536,7 @@ load_custom_keywords() {
 is_sensitive_env() {
     local env_var="$1"
     local var_name="${env_var%%=*}"
-
+    
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # 第 1 步：检查排除列表（优先级最高）
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -547,7 +547,7 @@ is_sensitive_env() {
             return 1  # 明确排除，不是敏感变量
         fi
     done
-
+    
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # 第 2 步：检查内置敏感关键词
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -586,14 +586,14 @@ is_sensitive_env() {
         "SIGNING_KEY" "JWT_SECRET" "JWT_KEY"
         "WEBHOOK_SECRET" "ENCRYPTION_KEY"
     )
-
+    
     # 检查变量名是否包含内置敏感关键词
     for keyword in "${sensitive_keywords[@]}"; do
         if echo "$var_name" | grep -qi "$keyword"; then
             return 0  # 是敏感变量
         fi
     done
-
+    
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # 第 3 步：检查自定义敏感关键词
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -602,7 +602,7 @@ is_sensitive_env() {
             return 0  # 是敏感变量（自定义）
         fi
     done
-
+    
     return 1  # 不是敏感变量
 }
 
@@ -611,28 +611,28 @@ is_sensitive_env() {
 # ============================================
 validate_container_name() {
     local name="$1"
-
+    
     # 检查是否包含路径遍历字符
     if [[ "$name" == *".."* ]] || [[ "$name" == *"/"* ]] || [[ "$name" == *"\\"* ]]; then
         log_error "容器名包含非法字符（路径遍历攻击）：$name"
         log_error "Container name contains illegal characters (path traversal): $name"
         return 1
     fi
-
+    
     # 检查是否包含特殊字符
     if [[ "$name" =~ [\$\`\;\|\&\<\>\(\)\{\}\[\]] ]]; then
         log_error "容器名包含危险字符：$name"
         log_error "Container name contains dangerous characters: $name"
         return 1
     fi
-
+    
     # 检查长度
     if [ ${#name} -gt 200 ]; then
         log_error "容器名过长（超过200字符）：$name"
         log_error "Container name too long (> 200 chars): $name"
         return 1
     fi
-
+    
     return 0
 }
 
@@ -642,14 +642,14 @@ validate_container_name() {
 is_critical_directory() {
     local dir="$1"
     local abs_dir=$(cd "$dir" 2>/dev/null && pwd || echo "$dir")
-
+    
     for critical in "${CRITICAL_DIRS[@]}"; do
         # 检查是否完全匹配或为子目录
         if [[ "$abs_dir" == "$critical" ]] || [[ "$abs_dir" == "$critical"/* ]]; then
             return 0  # 是核心目录
         fi
     done
-
+    
     return 1  # 不是核心目录
 }
 
@@ -658,7 +658,7 @@ is_critical_directory() {
 # ============================================
 confirm_critical_output() {
     local dir="$1"
-
+    
     echo "" >&2
     echo -e "${RED}═══════════════════════════════════════════════════${NC}" >&2
     echo -e "${RED}⚠️  严重警告 / CRITICAL WARNING ⚠️${NC}" >&2
@@ -679,7 +679,7 @@ confirm_critical_output() {
     echo -e "  ${GREEN}✓${NC} ./output (默认 / default)" >&2
     echo -e "  ${GREEN}✓${NC} /tmp/docker-exports" >&2
     echo "" >&2
-
+    
     # 第一次确认
     echo -e "${YELLOW}第一次确认 / First confirmation:${NC}" >&2
     echo -n "您确定要继续吗？(输入 YES 继续 / Type YES to continue): " >&2
@@ -688,7 +688,7 @@ confirm_critical_output() {
         log_error "已取消操作 / Operation cancelled"
         return 1
     fi
-
+    
     # 第二次确认
     echo "" >&2
     echo -e "${YELLOW}第二次确认 / Second confirmation:${NC}" >&2
@@ -698,7 +698,7 @@ confirm_critical_output() {
         log_error "已取消操作 / Operation cancelled"
         return 1
     fi
-
+    
     # 第三次确认
     echo "" >&2
     echo -e "${RED}第三次确认 / Final confirmation:${NC}" >&2
@@ -708,11 +708,11 @@ confirm_critical_output() {
         log_error "已取消操作 / Operation cancelled"
         return 1
     fi
-
+    
     echo "" >&2
     log_warn "用户强制输出到核心目录：$dir"
     log_warn "User forced output to critical directory: $dir"
-
+    
     return 0
 }
 
@@ -722,32 +722,32 @@ confirm_critical_output() {
 get_unique_dir() {
     local base_dir="$1"
     local container_name="$2"
-
+    
     # 验证容器名安全性
     if ! validate_container_name "$container_name"; then
         return 1
     fi
-
+    
     local target_dir="$base_dir/$container_name"
-
+    
     # 如果设置了覆盖模式，直接返回
     if [ "$OVERWRITE_MODE" = "true" ]; then
         echo "$target_dir"
         return
     fi
-
+    
     # 如果目录不存在，直接使用
     if [ ! -d "$target_dir" ]; then
         echo "$target_dir"
         return
     fi
-
+    
     # 目录存在，查找可用的递增编号
     local i=1
     while [ -d "${target_dir}_${i}" ]; do
         i=$((i + 1))
     done
-
+    
     echo "${target_dir}_${i}"
 }
 
@@ -756,41 +756,41 @@ get_unique_dir() {
 # ============================================
 convert_container() {
     local container="$1"
-
+    
     # 检查容器是否存在
     if ! docker inspect "$container" &>/dev/null; then
         log_error "容器 '$container' 不存在"
         FAILED_COUNT=$((FAILED_COUNT + 1))
         return 1
     fi
-
+    
     # 获取输出目录
     local output_dir=$(get_unique_dir "$OUTPUT_DIR" "$container")
     local compose_file="$output_dir/docker-compose.yml"
-
+    
     log_info "转换容器：$container → $compose_file"
-
+    
     # 如果是 dry-run 模式，只显示不执行
     if [ "$DRY_RUN" = "true" ]; then
         log_info "[DRY-RUN] 将创建：$compose_file"
         return 0
     fi
-
+    
     # 创建输出目录
     mkdir -p "$output_dir"
-
+    
     # 获取容器信息
     local IMAGE=$(docker inspect "$container" --format='{{.Config.Image}}')
     local RESTART=$(docker inspect "$container" --format='{{.HostConfig.RestartPolicy.Name}}')
     local NETWORK_MODE=$(docker inspect "$container" --format='{{.HostConfig.NetworkMode}}')
     local STATUS=$(docker inspect "$container" --format='{{.State.Status}}')
-
+    
     # 检测是否为 Swarm 模式
     local IS_SWARM="false"
     if docker info 2>/dev/null | grep -q "Swarm: active"; then
         IS_SWARM="true"
     fi
-
+    
     # 生成 docker-compose.yml
     {
         # 文件头注释（清洁模式下简化）
@@ -811,13 +811,13 @@ convert_container() {
         echo ""
         echo "services:"
         echo "  ${container}:"
-
+        
         # 镜像
         echo "    image: $IMAGE"
-
+        
         # 容器名
         echo "    container_name: $container"
-
+        
         # 重启策略
         if [ -n "$RESTART" ] && [ "$RESTART" != "no" ]; then
             if [ "$RESTART" = "always" ]; then
@@ -830,7 +830,7 @@ convert_container() {
                 echo "    restart: $RESTART"
             fi
         fi
-
+        
         # 网络配置（修正：使用 networks 而非 network_mode）
         local NEEDS_NETWORK_SECTION="false"
         if [ "$NETWORK_MODE" != "default" ] && [ "$NETWORK_MODE" != "bridge" ]; then
@@ -844,7 +844,7 @@ convert_container() {
                 NEEDS_NETWORK_SECTION="true"
             fi
         fi
-
+        
         # 端口映射
         local PORT_BINDINGS=$(docker inspect "$container" --format='{{json .HostConfig.PortBindings}}')
         if [ "$PORT_BINDINGS" != "null" ] && [ "$PORT_BINDINGS" != "{}" ]; then
@@ -855,7 +855,7 @@ convert_container() {
                 echo "      - \"$port\""
             done
         fi
-
+        
         # 数据卷
         local BINDS=$(docker inspect "$container" --format='{{json .HostConfig.Binds}}')
         if [ "$BINDS" != "null" ] && [ "$BINDS" != "[]" ]; then
@@ -885,13 +885,13 @@ convert_container() {
                 fi
             done
         fi
-
+        
         # 环境变量
         if [ "$EXPORT_TYPE" = "env" ]; then
             # env 模式：生成 .env 和 .env.example 文件，yml 中使用 ${VAR_NAME} 引用
             local env_file="$output_dir/.env"
             local env_example_file="$output_dir/.env.example"
-
+            
             # 生成 .env 文件
             {
                 echo "# ═════════════════════════════════════════════════"
@@ -908,7 +908,7 @@ convert_container() {
                 echo "# ═════════════════════════════════════════════════"
                 echo ""
             } > "$env_file"
-
+            
             # 生成 .env.example 文件
             {
                 echo "# ═════════════════════════════════════════════════"
@@ -923,18 +923,18 @@ convert_container() {
                 echo "# ═════════════════════════════════════════════════"
                 echo ""
             } > "$env_example_file"
-
+            
             # 收集环境变量，分为两组：排除的和需要 .env 的
             local env_vars_for_file=()      # 需要写入 .env 的变量
             local env_vars_excluded=()      # 被排除的变量（直接写入 yml）
             local has_env=false
             local has_excluded=false
-
+            
             while IFS= read -r env; do
                 if [ -n "$env" ]; then
                     local var_name="${env%%=*}"
                     local var_value="${env#*=}"
-
+                    
                     # 检查变量是否在排除列表中（精确匹配）
                     local is_excluded=false
                     for excluded in "${EXCLUDED_KEYWORDS[@]}"; do
@@ -943,7 +943,7 @@ convert_container() {
                             break
                         fi
                     done
-
+                    
                     if [ "$is_excluded" = true ]; then
                         # 被排除的变量：不写入 .env，直接在 yml 中使用
                         env_vars_excluded+=("$env")
@@ -951,10 +951,10 @@ convert_container() {
                     else
                         # 未被排除的变量：写入 .env 文件
                         has_env=true
-
+                        
                         # 写入 .env
                         echo "$env" >> "$env_file"
-
+                        
                         # 写入 .env.example
                         if is_sensitive_env "$env"; then
                             # 敏感变量：隐藏值
@@ -963,14 +963,14 @@ convert_container() {
                             # 非敏感变量：保留值
                             echo "$env" >> "$env_example_file"
                         fi
-
+                        
                         # 保存变量名用于 yml 引用
                         env_vars_for_file+=("$var_name")
                     fi
                 fi
             done < <(docker inspect "$container" --format='{{range .Config.Env}}{{.}}{{"\n"}}{{end}}' | \
                      grep -v '^PATH=' | grep -v '^HOME=' | grep -v '^HOSTNAME=')
-
+            
             # 在 docker-compose.yml 中处理环境变量
             if [ "$has_env" = true ] || [ "$has_excluded" = true ]; then
                 echo ""
@@ -978,7 +978,7 @@ convert_container() {
                     echo "    # 环境变量配置 / Environment Variables"
                 fi
                 echo "    environment:"
-
+                
                 # 先输出从 .env 文件加载的变量（使用 ${VAR} 引用）
                 if [ "$has_env" = true ]; then
                     if [ "$CLEAN_MODE" != "true" ]; then
@@ -990,7 +990,7 @@ convert_container() {
                         echo "      - ${var_name}=\${${var_name}}"
                     done
                 fi
-
+                
                 # 再输出被排除的变量（直接明文）
                 if [ "$has_excluded" = true ]; then
                     if [ "$CLEAN_MODE" != "true" ]; then
@@ -1013,7 +1013,7 @@ convert_container() {
             # yml 模式：直接在 YAML 中写入环境变量（包含敏感信息警告）
             local has_sensitive=false
             local env_list=()
-
+            
             while IFS= read -r env; do
                 if [ -n "$env" ]; then
                     env_list+=("$env")
@@ -1023,7 +1023,7 @@ convert_container() {
                 fi
             done < <(docker inspect "$container" --format='{{range .Config.Env}}{{.}}{{"\n"}}{{end}}' | \
                      grep -v '^PATH=' | grep -v '^HOME=' | grep -v '^HOSTNAME=')
-
+            
             if [ ${#env_list[@]} -gt 0 ]; then
                 echo ""
                 if [ "$has_sensitive" = true ] && [ "$CLEAN_MODE" != "true" ]; then
@@ -1046,14 +1046,14 @@ convert_container() {
                 done
             fi
         fi
-
+        
         # 工作目录
         local WORKDIR=$(docker inspect "$container" --format='{{.Config.WorkingDir}}')
         if [ -n "$WORKDIR" ] && [ "$WORKDIR" != "/" ]; then
             echo ""
             echo "    working_dir: $WORKDIR"
         fi
-
+        
         # Capabilities
         local CAP_ADD=$(docker inspect "$container" --format='{{json .HostConfig.CapAdd}}')
         if [ "$CAP_ADD" != "null" ] && [ "$CAP_ADD" != "[]" ]; then
@@ -1066,7 +1066,7 @@ convert_container() {
                 fi
             done
         fi
-
+        
         # Devices
         local DEVICES=$(docker inspect "$container" --format='{{json .HostConfig.Devices}}')
         if [ "$DEVICES" != "null" ] && [ "$DEVICES" != "[]" ]; then
@@ -1079,7 +1079,7 @@ convert_container() {
                 fi
             done
         fi
-
+        
         # 入口点
         local ENTRYPOINT=$(docker inspect "$container" --format='{{json .Config.Entrypoint}}')
         if [ "$ENTRYPOINT" != "null" ] && [ "$ENTRYPOINT" != "[]" ]; then
@@ -1092,7 +1092,7 @@ convert_container() {
                 fi
             done
         fi
-
+        
         # 命令
         local CMD=$(docker inspect "$container" --format='{{json .Config.Cmd}}')
         if [ "$CMD" != "null" ] && [ "$CMD" != "[]" ]; then
@@ -1105,7 +1105,7 @@ convert_container() {
                 fi
             done
         fi
-
+        
         # 日志配置（建议性配置，注释形式）
         if [ "$CLEAN_MODE" != "true" ]; then
             echo ""
@@ -1122,14 +1122,14 @@ convert_container() {
             echo "    #     max-size: \"10m\"    # 单个日志文件最大 10MB"
             echo "    #     max-file: \"3\"       # 最多保留 3 个日志文件"
         fi
-
+        
         # 资源限制（修正：根据 Swarm 模式使用不同格式）
         local MEMORY=$(docker inspect "$container" --format='{{.HostConfig.Memory}}')
         local CPUS=$(docker inspect "$container" --format='{{.HostConfig.NanoCpus}}')
-
+        
         if [ "$MEMORY" != "0" ] || [ "$CPUS" != "0" ]; then
             echo ""
-
+            
             if [ "$IS_SWARM" = "true" ]; then
                 # Swarm 模式：使用 deploy.resources
                 if [ "$CLEAN_MODE" != "true" ]; then
@@ -1138,12 +1138,12 @@ convert_container() {
                 echo "    deploy:"
                 echo "      resources:"
                 echo "        limits:"
-
+                
                 if [ "$CPUS" != "0" ]; then
                     local CPU_LIMIT=$(awk "BEGIN {printf \"%.2f\", $CPUS / 1000000000}")
                     echo "          cpus: '$CPU_LIMIT'"
                 fi
-
+                
                 if [ "$MEMORY" != "0" ]; then
                     local MEM_MB=$((MEMORY / 1024 / 1024))
                     echo "          memory: ${MEM_MB}M"
@@ -1153,12 +1153,12 @@ convert_container() {
                 if [ "$CLEAN_MODE" != "true" ]; then
                     echo "    # 资源限制 / Resource Limits"
                 fi
-
+                
                 if [ "$MEMORY" != "0" ]; then
                     local MEM_MB=$((MEMORY / 1024 / 1024))
                     echo "    mem_limit: ${MEM_MB}M"
                 fi
-
+                
                 if [ "$CPUS" != "0" ]; then
                     local CPU_LIMIT=$(awk "BEGIN {printf \"%.2f\", $CPUS / 1000000000}")
                     echo "    cpus: $CPU_LIMIT"
@@ -1187,7 +1187,7 @@ convert_container() {
                 fi
             fi
         fi
-
+        
         # 健康检查
         if [ "$CLEAN_MODE" != "true" ]; then
             local HEALTHCHECK=$(docker inspect "$container" --format='{{json .Config.Healthcheck}}')
@@ -1240,7 +1240,7 @@ convert_container() {
                 echo "    #   retries: 3"
             fi
         fi
-
+        
         # 网络声明部分（如果需要自定义网络）
         if [ "$NEEDS_NETWORK_SECTION" = "true" ]; then
             echo ""
@@ -1248,7 +1248,7 @@ convert_container() {
             echo "  $NETWORK_MODE:"
             echo "    external: true"
         fi
-
+        
         # 可选配置和使用说明（仅在非清洁模式下显示）
         if [ "$CLEAN_MODE" != "true" ]; then
             echo ""
@@ -1287,9 +1287,9 @@ convert_container() {
             echo "#      Validate: docker compose config"
             echo "# ════════════════════════════════════════════════"
         fi
-
+        
     } > "$compose_file"
-
+    
     # 如果是 env 模式，生成额外文件
     if [ "$EXPORT_TYPE" = "env" ]; then
         # 创建 .gitignore
@@ -1308,7 +1308,7 @@ logs/
 *.tmp
 *.bak
 GITIGNORE_EOF
-
+        
         # 创建 README.md
         cat > "$output_dir/README.md" <<README_EOF
 # $container - Docker Compose 配置
@@ -1392,25 +1392,25 @@ docker compose ps
 
 ---
 
-**生成时间**：$(date '+%Y-%m-%d %H:%M:%S')
-**原容器**：$container
+**生成时间**：$(date '+%Y-%m-%d %H:%M:%S')  
+**原容器**：$container  
 **生成工具**：docker-export-compose.sh v$VERSION
 README_EOF
-
+        
         log_info "生成 .env 文件：$env_file"
         log_info "生成 .env.example 文件：$env_example_file"
         log_info "生成 .gitignore 文件：$output_dir/.gitignore"
         log_info "生成 README.md 文件：$output_dir/README.md"
     fi
-
+    
     # 验证生成的文件
     if [ -f "$compose_file" ]; then
         log_success "导出成功：$compose_file"
-
+        
         if [ "$EXPORT_TYPE" = "env" ]; then
             log_warn "请检查 .env 文件中的敏感信息"
         fi
-
+        
         EXPORT_COUNT=$((EXPORT_COUNT + 1))
         return 0
     else
@@ -1425,17 +1425,17 @@ README_EOF
 # ============================================
 batch_from_file() {
     local file="$1"
-
+    
     if [ ! -f "$file" ]; then
         log_error "文件不存在：$file"
         exit 1
     fi
-
+    
     log_info "从文件读取容器列表：$file"
-
+    
     local total_lines=0
     local valid_lines=0
-
+    
     # 统计有效行
     while IFS= read -r line; do
         total_lines=$((total_lines + 1))
@@ -1444,19 +1444,19 @@ batch_from_file() {
         [[ -z "$line" ]] && continue
         valid_lines=$((valid_lines + 1))
     done < "$file"
-
+    
     log_info "文件包含 $total_lines 行，有效容器 $valid_lines 个"
     echo "" >&2
-
+    
     # 处理每一行
     while IFS= read -r line; do
         # 跳过注释和空行
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "$line" ]] && continue
-
+        
         # 去除前后空格
         local container=$(echo "$line" | xargs)
-
+        
         convert_container "$container"
         echo "" >&2
     done < "$file"
@@ -1467,7 +1467,7 @@ batch_from_file() {
 # ============================================
 export_all_containers() {
     local filter="$1"  # "all", "running", "stopped"
-
+    
     local cmd="docker ps"
     case "$filter" in
         "all")
@@ -1483,18 +1483,18 @@ export_all_containers() {
             log_info "导出所有已停止的容器"
             ;;
     esac
-
+    
     local containers=$($cmd --format '{{.Names}}')
-
+    
     if [ -z "$containers" ]; then
         log_warn "没有找到符合条件的容器"
         exit 0
     fi
-
+    
     local count=$(echo "$containers" | wc -l)
     log_info "找到 $count 个容器"
     echo "" >&2
-
+    
     # 列出容器
     if [ "$QUIET_MODE" != "true" ]; then
         echo -e "${YELLOW}容器列表：${NC}" >&2
@@ -1505,7 +1505,7 @@ export_all_containers() {
         done
         echo "" >&2
     fi
-
+    
     # 转换每个容器
     echo "$containers" | while read container; do
         convert_container "$container"
@@ -1521,7 +1521,7 @@ show_summary() {
     if [ "$QUIET_MODE" = "true" ]; then
         return 0
     fi
-
+    
     echo "" >&2
     echo "═══════════════════════════════════════════════════" >&2
     echo -e "${GREEN}导出完成统计${NC}" >&2
@@ -1531,7 +1531,7 @@ show_summary() {
     echo -e "  跳过数量：${YELLOW}$SKIPPED_COUNT${NC}" >&2
     echo -e "  输出目录：${CYAN}$OUTPUT_DIR${NC}" >&2
     echo "═══════════════════════════════════════════════════" >&2
-
+    
     if [ "$EXPORT_COUNT" -gt 0 ]; then
         echo "" >&2
         echo -e "${YELLOW}下一步操作：${NC}" >&2
@@ -1544,7 +1544,7 @@ show_summary() {
         echo "  - 建议在测试环境验证后再使用" >&2
         echo "  - 可以逐个迁移，降低风险" >&2
     fi
-
+    
     echo "" >&2
 }
 
@@ -1556,7 +1556,7 @@ main() {
     local MODE=""
     local INPUT_FILE=""
     local CONTAINER_NAME=""
-
+    
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -1636,7 +1636,7 @@ main() {
                 ;;
         esac
     done
-
+    
     # 显示横幅
     if [ "$QUIET_MODE" != "true" ]; then
         echo "" >&2
@@ -1645,13 +1645,13 @@ main() {
         echo "═══════════════════════════════════════════════════" >&2
         echo "" >&2
     fi
-
+    
     # 加载自定义敏感关键词配置
     load_custom_keywords "$CONFIG_FILE"
     if [ "$QUIET_MODE" != "true" ]; then
         echo "" >&2
     fi
-
+    
     # 检查 Docker 是否运行
     if ! docker info &>/dev/null; then
         log_error "Docker 未运行或无权限访问"
@@ -1661,7 +1661,7 @@ main() {
         echo "  2. 是否有权限：sudo usermod -aG docker \$USER" >&2
         exit 1
     fi
-
+    
     # 检查输出目录是否为核心系统目录
     if is_critical_directory "$OUTPUT_DIR"; then
         if [ "$MUST_OUTPUT" = "true" ]; then
@@ -1671,7 +1671,7 @@ main() {
             log_error "禁止输出到核心系统目录！"
             log_error "Output to critical system directory is FORBIDDEN!"
             echo "" >&2
-
+            
             if ! confirm_critical_output "$OUTPUT_DIR"; then
                 echo "" >&2
                 log_error "操作已取消。请使用安全的输出目录。"
@@ -1688,18 +1688,18 @@ main() {
             fi
         fi
     fi
-
+    
     # 显示模式信息
     if [ "$PRIVACY_MODE" = "true" ]; then
         log_info "隐私模式已启用：主机路径将被隐藏"
         log_info "Privacy mode enabled: Host paths will be masked"
     fi
-
+    
     if [ "$CLEAN_MODE" = "true" ]; then
         log_info "清洁模式已启用：生成简洁的 YAML（无注释）"
         log_info "Clean mode enabled: Generate minimal YAML without comments"
     fi
-
+    
     # 根据模式执行
     case "$MODE" in
         "file")
@@ -1725,10 +1725,10 @@ main() {
             convert_container "$CONTAINER_NAME"
             ;;
     esac
-
+    
     # 显示统计
     show_summary
-
+    
     # 返回状态
     if [ "$FAILED_COUNT" -gt 0 ]; then
         exit 1

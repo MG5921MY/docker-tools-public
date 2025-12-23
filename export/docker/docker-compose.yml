@@ -1,0 +1,24 @@
+services:
+  docker-export-webui:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: docker-export-webui
+    ports:
+      - "3080:3080"
+    environment:
+      # 默认账号：admin
+      DOCKER_EXPORT_AUTH_USER: "admin"
+      # 默认密码（请务必修改）
+      DOCKER_EXPORT_AUTH_PASSWORD: "change-me"
+    # 需要在 Linux / WSL / Docker Desktop (Linux 容器) 挂载 docker.sock，
+    # 这样容器内的脚本才能操作宿主机 Docker。
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 可选：将导出结果挂到宿主机
+      - ./output:/app/output
+      # 持久化认证数据（默认写入 /app/data/auth.json）
+      - ./data:/app/data
+    restart: unless-stopped
+
+
