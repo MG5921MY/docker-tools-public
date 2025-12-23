@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Docker Export to Compose WebUI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div id="appShell" class="hidden">
+    <header class="app-header">
+      <div class="header-main">
+        <div>
+          <h1>Docker Export to Compose WebUI</h1>
+          <p class="subtitle">
+            基于 <code>export/sh/docker-export-compose.sh</code> 的可视化导出工具
+          </p>
+        </div>
+        <div class="header-actions">
+          <button id="layoutToggle" class="theme-toggle-btn" type="button">
+            切换为窄屏布局
+          </button>
+          <button id="themeToggle" class="theme-toggle-btn" type="button">
+            切换到深色主题
+          </button>
+          <button id="btnAuth" class="theme-toggle-btn" type="button">
+            登录
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+    <section class="panel panel-mode">
+      <h2>导出模式</h2>
+      <div class="field-group mode-segment">
+        <label>
+          <input type="radio" name="mode" value="single" checked />
+          <span>单个容器</span>
+        </label>
+        <label>
+          <input type="radio" name="mode" value="batchFromList" />
+          <span>批量（粘贴/勾选容器列表）</span>
+        </label>
+        <label>
+          <input type="radio" name="mode" value="all-run" />
+          <span>所有运行中的容器</span>
+        </label>
+        <label>
+          <input type="radio" name="mode" value="all" />
+          <span>所有容器（包含已停止）</span>
+        </label>
+        <label>
+          <input type="radio" name="mode" value="all-stop" />
+          <span>所有已停止的容器</span>
+        </label>
+      </div>
+
+      <div class="field" id="field-container-name">
+        <label for="containerName">容器名称（单个模式）</label>
+        <div class="field-with-button">
+          <input id="containerName" type="text" placeholder="例如：nginx-web" />
+          <button id="btnPickContainer" class="btn-secondary" type="button">
+            从容器列表选择
+          </button>
+        </div>
+        <p class="field-help">
+          对应脚本的 <code>&lt;CONTAINER_NAME&gt;</code> 位置参数；可直接输入，或点击“从容器列表选择”从 Docker 容器中选择。
+        </p>
+      </div>
+
+      <div class="field hidden" id="field-container-list">
+        <label for="containerList">容器列表（每行一个，支持 # 注释）</label>
+        <div class="field-with-button">
+          <textarea
+            id="containerList"
+            rows="6"
+            placeholder="# 我的容器&#10;nginx-web&#10;mysql-db&#10;redis-cache"
+          ></textarea>
+          <button
+            id="btnPickContainerBatch"
+            class="btn-secondary"
+            type="button"
+          >
+            从列表勾选
+          </button>
+          <button
+            id="btnLoadBatchFile"
+            class="btn-secondary"
+            type="button"
+          >
+            从文件导入
+          </button>
+          <button
+            id="btnSaveBatchFile"
+            class="btn-secondary"
+            type="button"
+          >
+            导出为文件
+          </button>
+          <input
+            id="batchFileInput"
+            type="file"
+            accept=".txt,.list,.conf,.cfg"
+            class="hidden"
+          />
+        </div>
+        <p class="field-help">
+          对应脚本的 <code>--file &lt;FILE&gt;</code> 模式，会由后端生成临时文件。
+          既可以手动粘贴容器名，也可以点击“从列表勾选”在弹窗中多选。
+          可以从文本文件导入，也可以将当前列表导出为文本文件（每行一个容器名，支持 # 注释和空行）。
+        </p>
+      </div>
+    </section>
+
+    <section class="panel panel-options">
+      <h2>导出选项</h2>
+
+      <div class="field">
+        <label for="outputDir">输出目录 (-o / --output)</label>
+        <input id="outputDir" type="text" value="./output" />
+        <p class="field-help">
+          默认 <code>./output</code>。建议使用非系统核心目录。
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="exportType">导出类型 (--type)</label>
+        <select id="exportType">
+          <option value="yml">yml - 仅 docker-compose.yml（开发/临时）</option>
+          <option value="env">env - compose + .env（生产推荐）</option>
+        </select>
+      </div>
+
+      <div class="field field-inline">
+        <label><input id="optPrivacy" type="checkbox" /> 隐私模式 (--privacy)</label>
+        <span class="field-help-inline">隐藏数据卷主机路径</span>
+      </div>
+
+      <div class="field field-inline">
+        <label><input id="optClean" type="checkbox" /> 清洁模式 (--clean)</label>
+        <span class="field-help-inline">生成无注释的精简 YAML</span>
+      </div>
+
+      <div class="field field-inline">
+        <label><input id="optDryRun" type="checkbox" /> 模拟运行 (--dry-run)</label>
+        <span class="field-help-inline">仅预览，不实际创建文件</span>
+      </div>
+
+      <div class="field field-inline">
+        <label><input id="optOverwrite" type="checkbox" /> 覆盖模式 (--overwrite)</label>
+        <span class="field-help-inline">覆盖已存在目录，谨慎使用</span>
+      </div>
+
+      <div class="field field-inline">
+        <label><input id="optQuiet" type="checkbox" /> 安静模式 (--quiet)</label>
+        <span class="field-help-inline">减少输出，仅保留必要信息</span>
+      </div>
+
+      <div class="field field-inline danger">
+        <label><input id="optMustOutput" type="checkbox" /> 强制输出到核心目录 (--must-output)</label>
+        <span class="field-help-inline">跳过脚本的三次确认，非常危险，仅在完全确认风险后启用</span>
+      </div>
+
+      <div class="field">
+        <label>敏感关键词配置（config 文件）</label>
+        <button id="btnOpenConfig" class="btn-secondary" type="button">
+          查看 / 编辑 config（敏感关键词与排除规则）
+        </button>
+        <p class="field-help">
+          对应脚本目录下的 <code>config</code> 文件，用于自定义敏感环境变量关键词与排除规则（<code>!</code> 开头）。
+        </p>
+      </div>
+
+      <div class="field">
+        <label>安全设置</label>
+        <button id="btnOpenMfa" class="btn-secondary" type="button">
+          MFA 安全设置（TOTP）
+        </button>
+        <p class="field-help">
+          在 WebUI 中手动开启 MFA：生成二维码 → 手机验证器扫码 → 输入 6 位验证码确认启用。
+        </p>
+      </div>
+
+      <div class="field">
+        <label>账号与密码</label>
+        <button id="btnOpenPassword" class="btn-secondary" type="button">
+          修改登录密码
+        </button>
+        <p class="field-help">
+          修改密码需要先验证原密码。修改后会写入 data/auth.json 持久化。
+        </p>
+      </div>
+    </section>
+
+    <section class="panel panel-actions">
+      <h2>执行</h2>
+      <button id="btnRun" class="btn-primary">开始导出</button>
+      <span id="currentTaskInfo" class="task-info"></span>
+      <p class="field-help">
+        WebUI 会调用本机或容器中的后端服务，再由后端执行
+        <code>export/sh/docker-export-compose.sh</code>。
+      </p>
+    </section>
+
+    <section class="panel panel-preview">
+      <h2>命令预览</h2>
+      <div class="preview-toolbar">
+        <span class="field-help-inline">即将执行的命令</span>
+        <button id="btnCopyCommand" class="btn-secondary" type="button">
+          复制命令
+        </button>
+      </div>
+      <pre id="commandPreview" class="command-preview"></pre>
+      <p class="field-help">
+        上一次执行的命令：
+        <code id="lastCommandText">暂无</code>
+      </p>
+    </section>
+
+    <section class="panel panel-logs">
+      <h2>执行日志</h2>
+      <pre id="logOutput" class="log-output"></pre>
+    </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>基于 docker-export-compose.sh v2.3.0 的 WebUI 封装，仅封装操作，不修改脚本行为。</span>
+    </footer>
+  </div>
+
+  <div id="containerPicker" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>选择要导出的容器</h3>
+        <button id="btnClosePicker" class="modal-close" type="button">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="containerFilter">搜索容器名称 / 镜像</label>
+          <input
+            id="containerFilter"
+            type="text"
+            placeholder="输入关键字过滤，例如 mysql 或 redis"
+          />
+        </div>
+        <div id="containerListPanel" class="container-list-panel">
+          <div class="container-list-header">
+            <span class="col-check">选择</span>
+            <span>容器名</span>
+            <span>镜像</span>
+            <span>状态</span>
+          </div>
+          <div id="containerListItems" class="container-list-items"></div>
+        </div>
+        <p class="field-help">
+          列表来自 <code>docker ps -a</code>。单个导出：点击一行立即选择并关闭；批量导出：勾选多个后点击“应用选择”。
+        </p>
+        <div class="picker-footer">
+          <span id="pickerSelectedCount" class="field-help-inline"></span>
+          <button
+            id="btnApplySelection"
+            class="btn-primary"
+            type="button"
+          >
+            应用选择到批量列表
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mfaModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>MFA 安全设置（TOTP）</h3>
+        <button id="btnCloseMfa" class="modal-close" type="button">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <span id="mfaStatusText" class="field-help-inline"></span>
+        </div>
+
+        <div id="mfaEnabledPanel" class="field hidden">
+          <p class="field-help">
+            MFA 已开启。之后登录流程为“两步”：先输入账号+密码，通过后会要求再输入一次 6 位动态验证码（OTP）。
+          </p>
+          <div class="picker-footer">
+            <div>
+              <button id="btnMfaReset" class="btn-secondary" type="button">
+                重新绑定（生成新二维码）
+              </button>
+              <button id="btnMfaDisable" class="btn-secondary" type="button">
+                关闭 MFA
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="mfaSetupPanel" class="field">
+          <div class="picker-footer" style="justify-content: flex-start; gap: 8px;">
+            <button id="btnMfaInit" class="btn-secondary" type="button">
+              生成二维码
+            </button>
+            <button id="btnMfaReset2" class="btn-secondary" type="button">
+              重新绑定（生成新二维码）
+            </button>
+          </div>
+
+          <div id="mfaQrWrap" class="hidden" style="margin-top: 10px;">
+            <img id="mfaQrImg" alt="MFA QR Code" style="max-width: 240px; width: 100%;" />
+          </div>
+
+          <p id="mfaSecretWrap" class="field-help hidden">
+            Secret（可手动输入）：<code id="mfaSecretText"></code>
+          </p>
+
+          <div class="field-with-button" style="margin-top: 10px;">
+            <input id="mfaCode" type="text" placeholder="输入 6 位验证码" inputmode="numeric" />
+            <button id="btnMfaEnable" class="btn-primary" type="button">
+              确认启用 MFA
+            </button>
+          </div>
+          <p class="field-help">
+            推荐使用 Microsoft Authenticator / Google Authenticator / 1Password 等支持 TOTP 的验证器。
+          </p>
+          <span id="mfaActionStatus" class="field-help-inline"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>登录</h3>
+        <button id="btnCloseLogin" class="modal-close" type="button">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <span id="loginStatusText" class="field-help-inline"></span>
+        </div>
+
+        <div id="loginPasswordPanel" class="field">
+          <div class="field">
+            <label for="loginUser">账号</label>
+            <input id="loginUser" type="text" autocomplete="username" />
+          </div>
+          <div class="field">
+            <label for="loginPassword">密码</label>
+            <input id="loginPassword" type="password" autocomplete="current-password" />
+          </div>
+          <div class="picker-footer">
+            <button id="btnLogin" class="btn-primary" type="button">下一步</button>
+          </div>
+        </div>
+
+        <div id="loginOtpPanel" class="field hidden">
+          <div class="field">
+            <label for="loginOtp">动态验证码（6 位）</label>
+            <input id="loginOtp" type="text" inputmode="numeric" placeholder="123456" />
+          </div>
+          <div class="picker-footer">
+            <button id="btnVerifyOtp" class="btn-primary" type="button">验证并登录</button>
+          </div>
+          <p class="field-help">
+            仅在开启 MFA 时需要输入一次验证码。验证通过后，本次会话不再重复要求验证码。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="passwordModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>修改登录密码</h3>
+        <button id="btnClosePassword" class="modal-close" type="button">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <span id="passwordInfoText" class="field-help-inline"></span>
+        </div>
+        <div class="field">
+          <label for="oldPassword">原密码</label>
+          <input id="oldPassword" type="password" autocomplete="current-password" />
+        </div>
+        <div class="field">
+          <label for="newPassword">新密码</label>
+          <input id="newPassword" type="password" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="newPassword2">确认新密码</label>
+          <input id="newPassword2" type="password" autocomplete="new-password" />
+        </div>
+        <div class="picker-footer">
+          <span id="passwordActionStatus" class="field-help-inline"></span>
+          <div>
+            <button id="btnChangePassword" class="btn-primary" type="button">
+              保存新密码
+            </button>
+          </div>
+        </div>
+        <p class="field-help">
+          注意：如果你在 docker-compose.yml 里持续设置了 <code>DOCKER_EXPORT_AUTH_PASSWORD</code>，
+          且当前 data/auth.json 不存在时会用它初始化；之后修改密码以 data/auth.json 为准。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="configModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>编辑敏感关键词配置（config）</h3>
+        <button id="btnCloseConfig" class="modal-close" type="button">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="configContent">config 文件内容</label>
+          <textarea
+            id="configContent"
+            rows="16"
+            placeholder="# 每行一个关键词，# 开头为注释，! 前缀为排除规则"
+          ></textarea>
+          <p class="field-help">
+            - 每行一个关键词（仅支持字母、数字、下划线、横杠）。<br />
+            - <code>#</code> 开头为注释行。<br />
+            - <code>!</code> 开头表示排除关键词（即使变量名包含该词也不视为敏感）。
+          </p>
+        </div>
+        <div class="picker-footer">
+          <span id="configStatus" class="field-help-inline"></span>
+          <div>
+            <button id="btnDownloadConfig" class="btn-secondary" type="button">
+              下载 config 文件
+            </button>
+            <button id="btnSaveConfig" class="btn-primary" type="button">
+              保存 config
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config-model.js"></script>
+  <script src="js/api-client.js"></script>
+  <script src="js/ui-render.js"></script>
+  <script src="js/theme.js"></script>
+</body>
+</html>
+
+
